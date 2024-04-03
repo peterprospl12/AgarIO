@@ -13,11 +13,18 @@ class MyCell:
         self.color = color_t
 
 
+class Food:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+
 class GUI:
     def __init__(self):
         self.radius = None
         self.myCell = None
         self.enemies = []
+        self.foods = []
         self.screen = None
         self.clock = None
         self.running = None
@@ -59,7 +66,8 @@ class GUI:
             self.myCell.y += int(math.sin(angle) * self.speed)
 
     def send_position_change(self):
-        data = struct.pack('i d d i', self.myCell.id, self.myCell.x, self.myCell.y, self.myCell.mass)
+        data = struct.pack('i d d i i i i', self.myCell.id, self.myCell.x, self.myCell.y,
+                           self.myCell.mass, self.myCell.color[0], self.myCell.color[1], self.myCell.color[2])
         self.s.sendall(data)
 
     def get_enemies_position(self):
@@ -74,11 +82,36 @@ class GUI:
     def draw_everything(self):
         self.screen.fill((255, 255, 255))
         pygame.draw.circle(self.screen, self.myCell.color, (int(self.myCell.x), int(self.myCell.y)), self.radius)
-        for i in range(len(self.enemies)):
-            myCell = self.enemies[i]
-            pygame.draw.circle(self.screen, myCell.color, (int(myCell.x), int(myCell.y)), 25)
+        for cell in self.enemies:
+            pygame.draw.circle(self.screen, cell.color, (int(cell.x), int(cell.y)), 25)
+        for food in self.foods:
+            pygame.draw.circle(self.screen, (255,0,0), (int(food.x), int(food.y)), 5)
         pygame.display.flip()
         self.clock.tick(self.fps)
+
+    def recieve_int(self):
+        buffer = self.s.recv(4)
+        number = struct.unpack("i", buffer)[0]
+        return number
+
+    def upload_map(self):
+
+        # clear buffers
+        self.enemies = []
+        self.foods = []
+
+        # get enemies
+        enemies_n = self.recieve_int()
+        for i in range(enemies_n):
+            buffer = self.s.recv(40)
+            myID, x, y, mass, r, g, b = struct.unpack('i d d i i i i', buffer)
+            self.enemies.append(MyCell(myID, x, y, mass, (r, g, b)))
+
+        # get foods
+        for i in range(10):
+            buffer = self.s.recv(16)
+            x, y = struct.unpack('d d', buffer)
+            self.foods.append(Food(x, y))
 
     def run(self):
         self.receive_starting_cell()
@@ -87,6 +120,7 @@ class GUI:
             self.handle_events()
             self.update_cell_position()
             self.send_position_change()
+            self.upload_map()
             self.draw_everything()
         self.s.close()
 
