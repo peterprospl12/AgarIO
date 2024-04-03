@@ -6,27 +6,31 @@
 #include <unistd.h>
 #include <string.h>
 #include <pthread.h>
+#include <stdbool.h>
 
 // COMPILE IN TERMINAL WITH: gcc server.c -lpthread -o server
 
 //----------------------------  CONSTS AND STRUCTS  ----------------------------
 
-const int X = 1000;
-
-pthread_mutex_t game_state_mutex = PTHREAD_MUTEX_INITIALIZER;
+const int WIDTH = 1200;
+const int HEIGHT = 800;
+#define PLAYERS 16
+const int STARTING_MASS = 50;
 
 struct Cell {
 	int id;
 	double x,y;
 	int mass;
+	int colorRGB[3];
+	bool running;
 };
 
 struct GameState {
-	struct Cell players[16];
+	struct Cell players[PLAYERS];
 	int n_players;
 };
 
-//---------------------  SENDING AND RECIEVING CELLS  ----------------------------
+//---------------------  SENDING AND RECIEVING CELLS INFO  ----------------------------
 
 struct Cell recieve_cell(const int sock)
 {
@@ -44,7 +48,7 @@ struct Cell recieve_cell(const int sock)
 		fprintf(stderr, "Error receiving player cell!\n");
 		return cell;
 	}
-	// Skopiuj dane z bufora do struktury Message
+
 	memcpy(&cell, buffer, sizeof(struct Cell));
 
 	return cell;
@@ -57,6 +61,7 @@ void send_cell(const int sock, const struct Cell cell)
 
 	const ssize_t bytes_sent = send(sock, buffer, sizeof(buffer), 0);
 
+	// check if message was sent
 	if (bytes_sent <= 0) {
 		fprintf(stderr, "Error sending message\n");
 	}
@@ -65,6 +70,7 @@ void send_cell(const int sock, const struct Cell cell)
 //------------------------  GLOBAL GAME STATE  -------------------------------
 
 struct GameState game_state;
+pthread_mutex_t game_state_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void update_game_state(struct Cell cell)
 {
@@ -82,19 +88,38 @@ void *connection_handler(void *socket_desc)
 	int sock = * (int *)socket_desc;
 
 	// create player cell
-	const int id = game_state.n_players;
+	int id;
 	game_state.n_players++;
 
-	char message[256];
-	sprintf(message,"Welcome player with id %d\n", id);
-	write(sock, message, strlen(message));
 	fprintf(stderr,"Player %d connected\n", id);
 
 	struct Cell clientCell;
-	clientCell.id = id;
-	clientCell.mass = 10;
-	clientCell.x = (double)rand()/RAND_MAX * 2*X - X; // liczba x z zakresu -X do X
-	clientCell.y = (double)rand()/RAND_MAX * 2*X - X; // liczba y z zakresu -X do X
+
+	// find first free player slot
+	bool found_slot = false;
+	for(int i=0;i<PLAYERS;i++)
+	{
+		if(game_state.players[i].running == false)
+		{
+			id = i;
+			clientCell.id = id;
+			clientCell.mass = STARTING_MASS;
+			clientCell.colorRGB[0] = rand() % 256;
+			clientCell.colorRGB[1] = rand() % 256;
+			clientCell.colorRGB[2] = rand() % 256;
+			clientCell.x = (double)rand()/RAND_MAX * WIDTH; // liczba x z zakresu od 0 do WIDTH
+			clientCell.y = (double)rand()/RAND_MAX * HEIGHT; // liczba y z zakresu od 0 do HEIGHT
+			game_state.players[i] = clientCell;
+			found_slot = true;
+			break;
+		}
+	}
+	if(!found_slot)
+	{
+		fprintf(stderr, "No free player slots\n");
+		close(sock);
+		pthread_exit(NULL);
+	}
 
 	send_cell(sock, clientCell);
 
@@ -105,6 +130,7 @@ void *connection_handler(void *socket_desc)
 	} while(clientCell.mass >= 10); // wait till player's death
 
 	fprintf(stderr, "Client disconnected\n");
+
 	close(sock);
 	pthread_exit(NULL);
 }
@@ -132,6 +158,9 @@ int main(int argc, char *argv[])
 
 	pthread_mutex_t game_state_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+	for(int i=0;i<PLAYERS;i++) {
+		game_state.players[i].id = false;
+	}
 	for (;;) {
 		connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
 		fprintf(stderr, "Connection accepted\n");
