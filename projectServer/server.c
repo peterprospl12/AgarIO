@@ -7,17 +7,18 @@
 #include <string.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <math.h>
 
-// COMPILE IN TERMINAL WITH: gcc server.c -lpthread -o server
-// JAK DODASZ NAGLOWKOWE?
-// gcc server.c game_state.c communication.c -lpthread -o server
+// COMPILE IN TERMINAL WITH: gcc server.c -lm -lpthread -o server
+
 //----------------------------  CONSTS AND STRUCTS  ----------------------------
 
 const int WIDTH = 1200;
 const int HEIGHT = 800;
 #define PLAYERS 16
 #define FOOD_N 10
-const int STARTING_MASS = 50;
+const int STARTING_MASS = 1000;
+const int FOOD_MASS = 200;
 
 struct Cell {
 	int id;
@@ -105,7 +106,19 @@ void send_food(const int sock, const struct Food food)
 struct GameState game_state;
 pthread_mutex_t game_state_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-struct Cell create_new_player(int sock)
+struct Cell revive_player()
+{
+    struct Cell cell;
+    cell.mass = STARTING_MASS;
+    cell.colorRGB[0] = rand() % 256;
+    cell.colorRGB[1] = rand() % 256;
+    cell.colorRGB[2] = rand() % 256;
+    cell.x = (double)rand()/RAND_MAX * WIDTH; // liczba x z zakresu od 0 do WIDTH
+    cell.y = (double)rand()/RAND_MAX * HEIGHT; // liczba y z zakresu od 0 do HEIGHT
+    return cell;
+}
+
+struct Cell create_new_player(const int sock)
 {
 	pthread_mutex_lock(&game_state_mutex);
     struct Cell cell;
@@ -167,12 +180,65 @@ void send_game_state(const int sock)
     pthread_mutex_unlock(&game_state_mutex);
 }
 
-void remove_player(struct Cell cell, int sock)
+void remove_player(const int deleteId, const int sock)
 {
     pthread_mutex_lock(&game_state_mutex);
-    game_state.running[cell.id] = false;
+    game_state.running[deleteId] = false;
     game_state.n_players--;
     pthread_mutex_unlock(&game_state_mutex);
+}
+
+//----------------------------  GAME EVENTS  ----------------------------------
+
+pthread_mutex_t game_events_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+double distance(int x1, int x2, int y1, int y2)
+{
+    return sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2));
+}
+
+void checkEatFood(struct Cell* cell)
+{
+    for(int i=0;i<FOOD_N;i++)
+    {
+        double r1 = sqrt(cell->mass/3.14);
+        double r2 = sqrt(FOOD_MASS/3.14);
+        if(distance(cell->x, game_state.foods[i].x, cell->y, game_state.foods[i].y) < (r1+r2))
+        {
+            cell->mass += FOOD_MASS;
+            game_state.foods[i].x = (double)rand()/RAND_MAX * WIDTH;
+            game_state.foods[i].y = (double)rand()/RAND_MAX * HEIGHT;
+        }
+    }
+}
+
+void checkCollisions(struct Cell* cell)
+{
+    double r1 = sqrt(cell->mass/3.14);
+    for(int i=0;i<PLAYERS;i++)
+    {
+        if(game_state.running[i] && i != cell->id)
+        {
+            double r2 = sqrt(game_state.players[i].mass/3.14);
+            if(distance(cell->x, game_state.players[i].x, cell->y, game_state.players[i].y) < (r1+r2))
+            {
+                if(cell->mass > 1.1*game_state.players[i].mass) // I kill him
+                {
+                    cell->mass += game_state.players[i].mass;
+                    int tmp_id = game_state.players[i].id;
+                    game_state.players[i] = revive_player();
+                    game_state.players[i].id = tmp_id;
+                }
+                else if(game_state.players[i].mass > 1.1*cell->mass) // I get killed
+                {
+                    int tmp_id = cell->id;
+                    game_state.players[i].mass += cell->mass;
+                    *cell = revive_player();
+                    cell->id = tmp_id;
+                }
+            }
+        }
+    }
 }
 
 //------------------------  CONNECTION HANDLER  -------------------------------
@@ -186,22 +252,28 @@ void *connection_handler(void *socket_desc)
 	struct Cell clientCell = create_new_player(sock);
 
 	fprintf(stderr,"Player %d connected\n", clientCell.id);
-
+    int delete_id = clientCell.id;
 	do {
 		clientCell = recieve_cell(sock);
 		if(clientCell.id == -1)
 		{
+		    fprintf(stderr, "Client quitted!\n");
             break;
         }
 		update_game_state(clientCell);
 		send_game_state(sock);
+	    pthread_mutex_lock(&game_events_mutex);
+	    checkEatFood(&clientCell);
+	    checkCollisions(&clientCell);
+	    pthread_mutex_unlock(&game_events_mutex);
+		send_cell(sock, clientCell);
 		fprintf(stderr, "Cell %d: %f %f %d\n", clientCell.id, clientCell.x, clientCell.y, clientCell.mass);
 	} while(clientCell.mass >= 10); // wait till player's death
 
 	fprintf(stderr, "Client disconnected\n");
 
 	// remove player
-	remove_player(clientCell, sock);
+	remove_player(delete_id, sock);
 
 	// close connection
 	close(sock);
@@ -228,9 +300,6 @@ int main(int argc, char *argv[])
 	bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
 
 	listen(listenfd, 10);
-
-	// create semaphore
-	pthread_mutex_t game_state_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 	// config game state
 	game_state.n_players = 0;

@@ -21,7 +21,6 @@ class Food:
 
 class GUI:
     def __init__(self):
-        self.radius = None
         self.myCell = None
         self.enemies = []
         self.foods = []
@@ -35,7 +34,7 @@ class GUI:
         port = 5000
         self.s.connect(('localhost', port))
 
-    def receive_starting_cell(self):
+    def receive_cell(self):
         buffer = self.s.recv(40)
         myID, x, y, mass, r, g, b = struct.unpack('i d d i i i i', buffer)
         self.myCell = MyCell(myID, x, y, mass, (r, g, b))
@@ -59,7 +58,7 @@ class GUI:
         dx = mx - self.myCell.x
         dy = my - self.myCell.y
         distance = math.sqrt(dx ** 2 + dy ** 2)
-        self.radius = math.sqrt(self.myCell.mass / math.pi) * 5
+        self.radius = math.sqrt(self.myCell.mass / math.pi)
         if distance > self.radius:
             angle = math.atan2(dy, dx)
             self.myCell.x += int(math.cos(angle) * self.speed)
@@ -81,11 +80,11 @@ class GUI:
 
     def draw_everything(self):
         self.screen.fill((255, 255, 255))
-        pygame.draw.circle(self.screen, self.myCell.color, (int(self.myCell.x), int(self.myCell.y)), self.radius)
+        # pygame.draw.circle(self.screen, self.myCell.color, (int(self.myCell.x), int(self.myCell.y)), self.radius) i tak narysuje gracza
         for cell in self.enemies:
-            pygame.draw.circle(self.screen, cell.color, (int(cell.x), int(cell.y)), 25)
+            pygame.draw.circle(self.screen, cell.color, (int(cell.x), int(cell.y)), math.sqrt(cell.mass / math.pi))
         for food in self.foods:
-            pygame.draw.circle(self.screen, (255,0,0), (int(food.x), int(food.y)), 5)
+            pygame.draw.circle(self.screen, (255,0,0), (int(food.x), int(food.y)), math.sqrt(200 / math.pi))
         pygame.display.flip()
         self.clock.tick(self.fps)
 
@@ -114,14 +113,18 @@ class GUI:
             self.foods.append(Food(x, y))
 
     def run(self):
-        self.receive_starting_cell()
+        self.receive_cell()
         self.init_pygame()
         while self.running:
             self.handle_events()
             self.update_cell_position()
             self.send_position_change()
             self.upload_map()
+            self.receive_cell()
             self.draw_everything()
+        # end connection
+        self.myCell.id = -1
+        self.send_position_change()
         self.s.close()
 
 

@@ -21,14 +21,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6f41b4d0-438a-4ed1-b057-a6b7289abc43" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/communication.c" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/communication.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/game_state.c" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/game_state.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../projectClient/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../projectClient/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../projectClient/client.py" beforeDir="false" afterPath="$PROJECT_DIR$/../projectClient/client.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/editor.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/editor.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/communication.c" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/communication.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_state.c" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_state.h" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/server" beforeDir="false" afterPath="$PROJECT_DIR$/server" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server.c" beforeDir="false" afterPath="$PROJECT_DIR$/server.c" afterDir="false" />
     </list>
@@ -41,20 +40,20 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
   </component>
-  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
-  "lastFilter": {
-    "state": "OPEN",
-    "assignee": "tomaszsankowski"
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;tomaszsankowski&quot;
   }
-}]]></component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/peterprospl12/AgarIO.git",
-    "accountId": "10dfb0f4-d4dd-4e78-9227-08e269e2fd93"
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/peterprospl12/AgarIO.git&quot;,
+    &quot;accountId&quot;: &quot;10dfb0f4-d4dd-4e78-9227-08e269e2fd93&quot;
   }
-}]]></component>
+}</component>
   <component name="HighlightingSettingsPerFile">
-    <setting file="file://$PROJECT_DIR$/main.c" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/server.c" root0="FORCE_HIGHLIGHTING" />
   </component>
   <component name="ProjectApplicationVersion">
     <option name="ide" value="CLion" />
@@ -73,28 +72,28 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_ADD_EXTERNAL_FILES": "true",
-    "CMake Application.projekt.executor": "Run",
-    "RunOnceActivity.RadMigrateCodeStyle": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.cidr.known.project.marker": "true",
-    "RunOnceActivity.readMode.enableVisualFormatting": "true",
-    "cf.advertisement.text.overridden": "true",
-    "cf.first.check.clang-format": "false",
-    "cidr.known.project.marker": "true",
-    "git-widget-placeholder": "Develop",
-    "last_opened_file_path": "/home/tomasz/Pulpit/AgarIO/projectServer",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "Cpp.EditorId",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_ADD_EXTERNAL_FILES&quot;: &quot;true&quot;,
+    &quot;CMake Application.projekt.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.RadMigrateCodeStyle&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;cf.advertisement.text.overridden&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;Develop&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/tomasz/Pulpit/AgarIO/projectServer&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RunManager">
     <configuration name="projekt" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="projekt" TARGET_NAME="projekt" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="projekt" RUN_TARGET_NAME="projekt">
       <method v="2">
@@ -120,6 +119,10 @@
       <workItem from="1712063492679" duration="8002000" />
       <workItem from="1712135209215" duration="18000" />
       <workItem from="1712136892694" duration="3180000" />
+      <workItem from="1712179542443" duration="1207000" />
+      <workItem from="1712180776058" duration="131000" />
+      <workItem from="1712180914584" duration="192000" />
+      <workItem from="1712181118600" duration="5211000" />
     </task>
     <servers />
   </component>
