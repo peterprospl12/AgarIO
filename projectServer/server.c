@@ -9,7 +9,8 @@
 #include <stdbool.h>
 #include <math.h>
 
-// COMPILE IN TERMINAL WITH: gcc server.c -lm -lpthread -o server
+// COMPILE IN TERMINAL WITH:
+// gcc server.c -lm -lpthread -o server
 
 //----------------------------  CONSTS AND STRUCTS  ----------------------------
 
@@ -205,7 +206,7 @@ void checkEatFood(struct Cell* cell)
         double r2 = sqrt(FOOD_MASS/3.14);
         if(distance(cell->x, game_state.foods[i].x, cell->y, game_state.foods[i].y) < (r1+r2))
         {
-            cell->mass += FOOD_MASS;
+            cell->mass += (FOOD_MASS * 100);
             game_state.foods[i].x = (double)rand()/RAND_MAX * WIDTH;
             game_state.foods[i].y = (double)rand()/RAND_MAX * HEIGHT;
         }

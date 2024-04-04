@@ -2,6 +2,8 @@ import socket
 import struct
 import math
 import pygame
+import pygame.gfxdraw
+import tkinter as tk
 
 
 class MyCell:
@@ -22,13 +24,14 @@ class Food:
 class GUI:
     def __init__(self):
         self.myCell = None
-        self.enemies = []
+        self.players = []
         self.foods = []
         self.screen = None
         self.clock = None
         self.running = None
         self.speed = 5
-        self.fps = 60
+        self.fps = 140
+        self.player_name = ""
 
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         port = 5000
@@ -53,6 +56,19 @@ class GUI:
             if event.type == pygame.QUIT:
                 self.running = False
 
+    def get_username(self):
+        root = tk.Tk()
+        root.title("mega gówno")
+        entry = tk.Entry(root)
+        entry.pack()
+        button = tk.Button(root, text="Play", command=lambda: self.submit(entry, root))
+        button.pack()
+        root.mainloop()
+
+    def submit(self, entry, root):
+        self.player_name = entry.get()
+        root.destroy()
+
     def update_cell_position(self):
         mx, my = pygame.mouse.get_pos()
         dx = mx - self.myCell.x
@@ -70,21 +86,35 @@ class GUI:
         self.s.sendall(data)
 
     def get_enemies_position(self):
-        self.enemies = []
+        self.players = []
         buffer = self.s.recv(4)
         (enemies_number,) = struct.unpack("i", buffer)
         for i in range(enemies_number):
             buffer = self.s.recv(40)
             myID, x, y, mass, r, g, b, enemies_number = struct.unpack('i d d i i i i', buffer)
-            self.enemies.append(MyCell(myID, x, y, mass, (r, g, b)))
+            self.players.append(MyCell(myID, x, y, mass, (r, g, b)))
 
     def draw_everything(self):
         self.screen.fill((255, 255, 255))
-        # pygame.draw.circle(self.screen, self.myCell.color, (int(self.myCell.x), int(self.myCell.y)), self.radius) i tak narysuje gracza
-        for cell in self.enemies:
-            pygame.draw.circle(self.screen, cell.color, (int(cell.x), int(cell.y)), math.sqrt(cell.mass / math.pi))
+        import pygame.gfxdraw
+        font = pygame.font.Font(None, 24)
+        for cell in self.players:
+            # bigger balck circle
+            pygame.gfxdraw.aacircle(self.screen, int(cell.x), int(cell.y), int(math.sqrt(cell.mass / math.pi)) + 2,
+                                    (0, 0, 0))
+            pygame.gfxdraw.filled_circle(self.screen, int(cell.x), int(cell.y), int(math.sqrt(cell.mass / math.pi)) + 2,
+                                         (0, 0, 0))
+            # smaller circle
+            pygame.gfxdraw.aacircle(self.screen, int(cell.x), int(cell.y), int(math.sqrt(cell.mass / math.pi)),
+                                    cell.color)
+            pygame.gfxdraw.filled_circle(self.screen, int(cell.x), int(cell.y), int(math.sqrt(cell.mass / math.pi)),
+                                         cell.color)
+            text_surface = font.render(self.player_name, True, (255, 255, 255))  # Tworzy obiekt Surface z tekstem
+            text_rect = text_surface.get_rect(center=(int(cell.x), int(cell.y)))  # Ustala pozycję tekstu na środku koła
+            self.screen.blit(text_surface, text_rect)
+
         for food in self.foods:
-            pygame.draw.circle(self.screen, (255,0,0), (int(food.x), int(food.y)), math.sqrt(200 / math.pi))
+            pygame.draw.circle(self.screen, (255, 0, 0), (int(food.x), int(food.y)), math.sqrt(200 / math.pi))
         pygame.display.flip()
         self.clock.tick(self.fps)
 
@@ -96,7 +126,7 @@ class GUI:
     def upload_map(self):
 
         # clear buffers
-        self.enemies = []
+        self.players = []
         self.foods = []
 
         # get enemies
@@ -104,7 +134,7 @@ class GUI:
         for i in range(enemies_n):
             buffer = self.s.recv(40)
             myID, x, y, mass, r, g, b = struct.unpack('i d d i i i i', buffer)
-            self.enemies.append(MyCell(myID, x, y, mass, (r, g, b)))
+            self.players.append(MyCell(myID, x, y, mass, (r, g, b)))
 
         # get foods
         for i in range(10):
@@ -113,6 +143,7 @@ class GUI:
             self.foods.append(Food(x, y))
 
     def run(self):
+        self.get_username()
         self.receive_cell()
         self.init_pygame()
         while self.running:
