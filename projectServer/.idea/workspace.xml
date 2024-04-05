@@ -22,7 +22,6 @@
   <component name="ChangeListManager">
     <list default="true" id="6f41b4d0-438a-4ed1-b057-a6b7289abc43" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/../projectClient/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../projectClient/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../projectClient/client.py" beforeDir="false" afterPath="$PROJECT_DIR$/../projectClient/client.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server" beforeDir="false" afterPath="$PROJECT_DIR$/server" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server.c" beforeDir="false" afterPath="$PROJECT_DIR$/server.c" afterDir="false" />
@@ -50,6 +49,7 @@
 }</component>
   <component name="HighlightingSettingsPerFile">
     <setting file="file://$PROJECT_DIR$/server.c" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file:///usr/include/pthread.h" root0="FORCE_HIGHLIGHTING" />
   </component>
   <component name="ProjectApplicationVersion">
     <option name="ide" value="CLion" />
@@ -121,7 +121,8 @@
       <workItem from="1712181118600" duration="5211000" />
       <workItem from="1712314680343" duration="176000" />
       <workItem from="1712314865237" duration="551000" />
-      <workItem from="1712328342725" duration="1926000" />
+      <workItem from="1712328342725" duration="2228000" />
+      <workItem from="1712335870396" duration="4058000" />
     </task>
     <servers />
   </component>

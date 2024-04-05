@@ -20,6 +20,7 @@ const int HEIGHT = 800;
 #define FOOD_N 10
 const int STARTING_MASS = 1000;
 const int FOOD_MASS = 200;
+const int MASS_BOOST = 10;
 
 bool isInsideAnyPlayer(double x, double y, int radius);
 
@@ -65,7 +66,7 @@ struct Cell recieve_cell(const int sock)
 	return cell;
 }
 
-void send_cell(const int sock, const struct Cell cell)
+bool send_cell(const int sock, const struct Cell cell)
 {
 	char buffer[sizeof(struct Cell)];
 	memcpy(buffer, &cell, sizeof(struct Cell));
@@ -75,10 +76,12 @@ void send_cell(const int sock, const struct Cell cell)
 	// check if message was sent
 	if (bytes_sent <= 0) {
 		fprintf(stderr, "Error sending message\n");
+		return false;
 	}
+	return true;
 }
 
-void send_int(const int sock, const int n)
+bool send_int(const int sock, const int n)
 {
     char buffer[sizeof(int)];
     memcpy(buffer, &n, sizeof(int));
@@ -88,10 +91,12 @@ void send_int(const int sock, const int n)
     // check if message was sent
     if (bytes_sent <= 0) {
         fprintf(stderr, "Error sending message\n");
+        return false;
     }
+    return true;
 }
 
-void send_food(const int sock, const struct Food food)
+bool send_food(const int sock, const struct Food food)
 {
     char buffer[sizeof(struct Food)];
     memcpy(buffer, &food, sizeof(struct Food));
@@ -101,7 +106,9 @@ void send_food(const int sock, const struct Food food)
     // check if message was sent
     if (bytes_sent <= 0) {
         fprintf(stderr, "Error sending message\n");
+        return false;
     }
+    return true;
 }
 
 //------------------------  GLOBAL GAME STATE  -------------------------------
@@ -109,7 +116,7 @@ void send_food(const int sock, const struct Food food)
 struct GameState game_state;
 pthread_mutex_t game_state_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-struct Cell revive_player()
+struct Cell revive_player() // nic tu sie chyba zlego nie stanie
 {
     struct Cell cell;
     cell.mass = STARTING_MASS;
@@ -120,7 +127,7 @@ struct Cell revive_player()
     do{
         cell.x = (double)rand()/RAND_MAX * WIDTH; // liczba x z zakresu od 0 do WIDTH
         cell.y = (double)rand()/RAND_MAX * HEIGHT; // liczba y z zakresu od 0 do HEIGHT
-    } while (isInsideAnyPlayer(cell.x, cell.y, 10) && its-- > 0);
+    } while (isInsideAnyPlayer(cell.x, cell.y, 100) && its-- > 0);
     return cell;
 }
 
@@ -156,37 +163,53 @@ struct Cell create_new_player(const int sock)
     do{
         cell.x = (double)rand()/RAND_MAX * WIDTH; // liczba x z zakresu od 0 do WIDTH
         cell.y = (double)rand()/RAND_MAX * HEIGHT; // liczba y z zakresu od 0 do HEIGHT
-    } while (isInsideAnyPlayer(cell.x, cell.y, 10) && its++ < 20);
+    } while (isInsideAnyPlayer(cell.x, cell.y, 100) && its++ < 20);
     game_state.players[id] = cell;
     game_state.running[id] = true;
 	pthread_mutex_unlock(&game_state_mutex);
-    send_cell(sock, cell);
+    if(!send_cell(sock, cell))
+    {
+        fprintf(stderr, "Error sending cell structure!\n");
+        close(sock);
+        pthread_exit(NULL);
+    }
 	return cell;
 }
 
 void update_game_state(struct Cell cell)
 {
-	pthread_mutex_lock(&game_state_mutex);
 	game_state.players[cell.id] = cell;
-	pthread_mutex_unlock(&game_state_mutex);
 }
 
-void send_game_state(const int sock)
+bool send_game_state(const int sock)
 {
     pthread_mutex_lock(&game_state_mutex);
-    send_int(sock, game_state.n_players);
+    if(!send_int(sock, game_state.n_players))
+    {
+        fprintf(stderr, "Error sending int value!\n");
+        return false;
+    }
     for(int i=0;i<PLAYERS;i++)
     {
         if(game_state.running[i])
         {
-            send_cell(sock, game_state.players[i]);
+            if(!send_cell(sock, game_state.players[i]))
+            {
+                fprintf(stderr, "Error sending cell structure!\n");
+                return false;
+            }
         }
     }
     for(int i=0;i<FOOD_N;i++)
     {
-        send_food(sock, game_state.foods[i]);
+        if(!send_food(sock, game_state.foods[i]))
+        {
+            fprintf(stderr, "Error sending food structure!\n");
+            return false;
+        }
     }
     pthread_mutex_unlock(&game_state_mutex);
+    return true;
 }
 
 void remove_player(const int deleteId, const int sock)
@@ -199,7 +222,8 @@ void remove_player(const int deleteId, const int sock)
 
 //----------------------------  GAME EVENTS  ----------------------------------
 
-pthread_mutex_t game_events_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t check_food_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t check_collision_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 double distance(int x1, int x2, int y1, int y2)
 {
@@ -220,13 +244,14 @@ bool isInsideAnyPlayer(double x, double y, int radius) {
 
 void checkEatFood(struct Cell* cell)
 {
+	pthread_mutex_lock(&check_food_mutex);
     for(int i=0;i<FOOD_N;i++)
     {
         double r1 = sqrt(cell->mass/3.14);
         double r2 = sqrt(FOOD_MASS/3.14);
         if(distance(cell->x, game_state.foods[i].x, cell->y, game_state.foods[i].y) < (r1+r2))
         {
-            cell->mass += (FOOD_MASS * 100);
+            cell->mass += MASS_BOOST*FOOD_MASS;
             int its = 20;
             do {
                 game_state.foods[i].y = (double)rand()/RAND_MAX * HEIGHT;
@@ -234,12 +259,14 @@ void checkEatFood(struct Cell* cell)
             } while (isInsideAnyPlayer(game_state.foods[i].x, game_state.foods[i].y, 5) && its-- > 0);
         }
     }
+	pthread_mutex_unlock(&check_food_mutex);
 }
 
 int max(int a, int b) { return a > b ? a : b; }
 
 void checkCollisions(struct Cell* cell)
 {
+    pthread_mutex_lock(&check_collision_mutex);
     double r1 = sqrt(cell->mass/3.14);
     for(int i=0;i<PLAYERS;i++)
     {
@@ -265,6 +292,7 @@ void checkCollisions(struct Cell* cell)
             }
         }
     }
+	pthread_mutex_unlock(&check_collision_mutex);
 }
 
 //------------------------  CONNECTION HANDLER  -------------------------------
@@ -275,24 +303,24 @@ void *connection_handler(void *socket_desc)
 	int sock = * (int *)socket_desc;
 
 	// create player cell
-	struct Cell clientCell = create_new_player(sock);
+	struct Cell clientCell = create_new_player(sock); // jest obsulga bledow juz w funkcji ( jak blad to konczy socket i watek )
 
 	fprintf(stderr,"Player %d connected\n", clientCell.id);
     int delete_id = clientCell.id;
 	do {
-		clientCell = recieve_cell(sock);
+		clientCell = recieve_cell(sock); // jest obsulga bledow juz w funkcji ( jak blad to konczy socket i watek )
 		if(clientCell.id == -1)
 		{
 		    fprintf(stderr, "Client quitted!\n");
             break;
         }
 		update_game_state(clientCell);
-		send_game_state(sock);
-	    pthread_mutex_lock(&game_events_mutex);
+		if(!send_game_state(sock))
+		    break;
 	    checkEatFood(&clientCell);
 	    checkCollisions(&clientCell);
-	    pthread_mutex_unlock(&game_events_mutex);
-		send_cell(sock, clientCell);
+		if(!send_cell(sock, clientCell))
+		    break;
 		// fprintf(stderr, "Cell %d: %f %f %d\n", clientCell.id, clientCell.x, clientCell.y, clientCell.mass);
 	} while(clientCell.mass >= 10); // wait till player's death
 
