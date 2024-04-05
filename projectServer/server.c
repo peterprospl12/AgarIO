@@ -1,6 +1,5 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -39,9 +38,9 @@ struct GameState {
 	int n_players;
 };
 
-//---------------------  SENDING AND RECIEVING CELLS INFO  ----------------------------
+//---------------------  SENDING AND RECEIVING CELLS INFO  ----------------------------
 
-struct Cell recieve_cell(const int sock)
+struct Cell receive_cell(const int sock)
 {
 	struct Cell cell;
 	char buffer[sizeof(struct Cell)];
@@ -114,8 +113,8 @@ struct Cell revive_player()
     cell.colorRGB[0] = rand() % 256;
     cell.colorRGB[1] = rand() % 256;
     cell.colorRGB[2] = rand() % 256;
-    cell.x = (double)rand()/RAND_MAX * WIDTH; // liczba x z zakresu od 0 do WIDTH
-    cell.y = (double)rand()/RAND_MAX * HEIGHT; // liczba y z zakresu od 0 do HEIGHT
+    cell.x = (double)rand()/RAND_MAX * WIDTH; // number of x from 0 to WIDTH
+    cell.y = (double)rand()/RAND_MAX * HEIGHT; // number of y from 0 to HEIGHT
     return cell;
 }
 
@@ -143,12 +142,14 @@ struct Cell create_new_player(const int sock)
     }
     cell.id = id;
     game_state.n_players++;
+
     cell.mass = STARTING_MASS;
     cell.colorRGB[0] = rand() % 256;
     cell.colorRGB[1] = rand() % 256;
     cell.colorRGB[2] = rand() % 256;
-    cell.x = (double)rand()/RAND_MAX * WIDTH; // liczba x z zakresu od 0 do WIDTH
-    cell.y = (double)rand()/RAND_MAX * HEIGHT; // liczba y z zakresu od 0 do HEIGHT
+    cell.x = (double)rand()/RAND_MAX * WIDTH; // number of x from 0 to WIDTH
+    cell.y = (double)rand()/RAND_MAX * HEIGHT; // number of y from 0 to HEIGHT
+
     game_state.players[id] = cell;
     game_state.running[id] = true;
 	pthread_mutex_unlock(&game_state_mutex);
@@ -158,9 +159,7 @@ struct Cell create_new_player(const int sock)
 
 void update_game_state(struct Cell cell)
 {
-	pthread_mutex_lock(&game_state_mutex);
 	game_state.players[cell.id] = cell;
-	pthread_mutex_unlock(&game_state_mutex);
 }
 
 void send_game_state(const int sock)
@@ -181,7 +180,7 @@ void send_game_state(const int sock)
     pthread_mutex_unlock(&game_state_mutex);
 }
 
-void remove_player(const int deleteId, const int sock)
+void remove_player(const int deleteId)
 {
     pthread_mutex_lock(&game_state_mutex);
     game_state.running[deleteId] = false;
@@ -206,7 +205,7 @@ void checkEatFood(struct Cell* cell)
         double r2 = sqrt(FOOD_MASS/3.14);
         if(distance(cell->x, game_state.foods[i].x, cell->y, game_state.foods[i].y) < (r1+r2))
         {
-            cell->mass += (FOOD_MASS * 100);
+            cell->mass += (FOOD_MASS);
             game_state.foods[i].x = (double)rand()/RAND_MAX * WIDTH;
             game_state.foods[i].y = (double)rand()/RAND_MAX * HEIGHT;
         }
@@ -255,26 +254,30 @@ void *connection_handler(void *socket_desc)
 	fprintf(stderr,"Player %d connected\n", clientCell.id);
     int delete_id = clientCell.id;
 	do {
-		clientCell = recieve_cell(sock);
+		clientCell = receive_cell(sock);
 		if(clientCell.id == -1)
 		{
-		    fprintf(stderr, "Client quitted!\n");
+		    fprintf(stderr, "Client quit!\n");
             break;
         }
 		update_game_state(clientCell);
 		send_game_state(sock);
-	    pthread_mutex_lock(&game_events_mutex);
-	    checkEatFood(&clientCell);
+
+        pthread_mutex_lock(&game_events_mutex);
+
+        checkEatFood(&clientCell);
 	    checkCollisions(&clientCell);
-	    pthread_mutex_unlock(&game_events_mutex);
-		send_cell(sock, clientCell);
+
+        pthread_mutex_unlock(&game_events_mutex);
+
+        send_cell(sock, clientCell);
 		fprintf(stderr, "Cell %d: %f %f %d\n", clientCell.id, clientCell.x, clientCell.y, clientCell.mass);
 	} while(clientCell.mass >= 10); // wait till player's death
 
 	fprintf(stderr, "Client disconnected\n");
 
 	// remove player
-	remove_player(delete_id, sock);
+	remove_player(delete_id);
 
 	// close connection
 	close(sock);

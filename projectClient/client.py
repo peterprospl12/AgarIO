@@ -32,6 +32,7 @@ class GUI:
         self.speed = 5
         self.fps = 140
         self.player_name = ""
+        self.mass_multiplier = 0.1
 
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         port = 5000
@@ -58,11 +59,24 @@ class GUI:
 
     def get_username(self):
         root = tk.Tk()
-        root.title("mega gówno")
+        root.title("Choose your username")
+
+        window_width = 300
+        window_height = 200
+
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+
+        position_top = int(screen_height / 2 - window_height / 2)
+        position_right = int(screen_width / 2 - window_width / 2)
+
+        root.geometry(f"{window_width}x{window_height}+{position_right}+{position_top}")
+
         entry = tk.Entry(root)
-        entry.pack()
+        entry.place(relx=0.5, rely=0.3, anchor='center')
+
         button = tk.Button(root, text="Play", command=lambda: self.submit(entry, root))
-        button.pack()
+        button.place(relx=0.5, rely=0.5, anchor='center')
         root.mainloop()
 
     def submit(self, entry, root):
@@ -109,12 +123,20 @@ class GUI:
                                     cell.color)
             pygame.gfxdraw.filled_circle(self.screen, int(cell.x), int(cell.y), int(math.sqrt(cell.mass / math.pi)),
                                          cell.color)
-            text_surface = font.render(self.player_name, True, (255, 255, 255))  # Tworzy obiekt Surface z tekstem
+
+            name = ""
+            if cell.id == self.myCell.id:
+                name = self.player_name
+            else:
+                name = str(cell.mass * self.mass_multiplier)
+
+            text_surface = font.render(name, True, (255, 255, 255))  # Tworzy obiekt Surface z tekstem
             text_rect = text_surface.get_rect(center=(int(cell.x), int(cell.y)))  # Ustala pozycję tekstu na środku koła
             self.screen.blit(text_surface, text_rect)
 
         for food in self.foods:
-            pygame.draw.circle(self.screen, (255, 0, 0), (int(food.x), int(food.y)), math.sqrt(200 / math.pi))
+            pygame.gfxdraw.aacircle(self.screen, int(food.x), int(food.y), int(math.sqrt(200 / math.pi)), (255,0,0))
+            pygame.gfxdraw.filled_circle(self.screen, int(food.x), int(food.y), int(math.sqrt(200 / math.pi)), (255,0,0))
         pygame.display.flip()
         self.clock.tick(self.fps)
 
