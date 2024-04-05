@@ -21,6 +21,8 @@ const int HEIGHT = 800;
 const int STARTING_MASS = 1000;
 const int FOOD_MASS = 200;
 
+bool isInsideAnyPlayer(double x, double y, int radius);
+
 struct Cell {
 	int id;
 	double x,y;
@@ -114,8 +116,11 @@ struct Cell revive_player()
     cell.colorRGB[0] = rand() % 256;
     cell.colorRGB[1] = rand() % 256;
     cell.colorRGB[2] = rand() % 256;
-    cell.x = (double)rand()/RAND_MAX * WIDTH; // liczba x z zakresu od 0 do WIDTH
-    cell.y = (double)rand()/RAND_MAX * HEIGHT; // liczba y z zakresu od 0 do HEIGHT
+    int its = 20;
+    do{
+        cell.x = (double)rand()/RAND_MAX * WIDTH; // liczba x z zakresu od 0 do WIDTH
+        cell.y = (double)rand()/RAND_MAX * HEIGHT; // liczba y z zakresu od 0 do HEIGHT
+    } while (isInsideAnyPlayer(cell.x, cell.y, 10) && its-- > 0);
     return cell;
 }
 
@@ -147,8 +152,11 @@ struct Cell create_new_player(const int sock)
     cell.colorRGB[0] = rand() % 256;
     cell.colorRGB[1] = rand() % 256;
     cell.colorRGB[2] = rand() % 256;
-    cell.x = (double)rand()/RAND_MAX * WIDTH; // liczba x z zakresu od 0 do WIDTH
-    cell.y = (double)rand()/RAND_MAX * HEIGHT; // liczba y z zakresu od 0 do HEIGHT
+    int its = 0;
+    do{
+        cell.x = (double)rand()/RAND_MAX * WIDTH; // liczba x z zakresu od 0 do WIDTH
+        cell.y = (double)rand()/RAND_MAX * HEIGHT; // liczba y z zakresu od 0 do HEIGHT
+    } while (isInsideAnyPlayer(cell.x, cell.y, 10) && its++ < 20);
     game_state.players[id] = cell;
     game_state.running[id] = true;
 	pthread_mutex_unlock(&game_state_mutex);
@@ -198,6 +206,18 @@ double distance(int x1, int x2, int y1, int y2)
     return sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2));
 }
 
+bool isInsideAnyPlayer(double x, double y, int radius) {
+    for(int i=0; i<PLAYERS; i++) {
+        if(game_state.running[i]) {
+            double r = sqrt(game_state.players[i].mass/3.14);
+            if(distance(x, game_state.players[i].x, y, game_state.players[i].y) < (r + radius) ) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 void checkEatFood(struct Cell* cell)
 {
     for(int i=0;i<FOOD_N;i++)
@@ -207,11 +227,16 @@ void checkEatFood(struct Cell* cell)
         if(distance(cell->x, game_state.foods[i].x, cell->y, game_state.foods[i].y) < (r1+r2))
         {
             cell->mass += (FOOD_MASS * 100);
-            game_state.foods[i].x = (double)rand()/RAND_MAX * WIDTH;
-            game_state.foods[i].y = (double)rand()/RAND_MAX * HEIGHT;
+            int its = 20;
+            do {
+                game_state.foods[i].y = (double)rand()/RAND_MAX * HEIGHT;
+                game_state.foods[i].x = (double)rand()/RAND_MAX * WIDTH;
+            } while (isInsideAnyPlayer(game_state.foods[i].x, game_state.foods[i].y, 5) && its-- > 0);
         }
     }
 }
+
+int max(int a, int b) { return a > b ? a : b; }
 
 void checkCollisions(struct Cell* cell)
 {
@@ -221,7 +246,7 @@ void checkCollisions(struct Cell* cell)
         if(game_state.running[i] && i != cell->id)
         {
             double r2 = sqrt(game_state.players[i].mass/3.14);
-            if(distance(cell->x, game_state.players[i].x, cell->y, game_state.players[i].y) < (r1+r2))
+            if(distance(cell->x, game_state.players[i].x, cell->y, game_state.players[i].y) < max(r1,r2))
             {
                 if(cell->mass > 1.1*game_state.players[i].mass) // I kill him
                 {
@@ -268,7 +293,7 @@ void *connection_handler(void *socket_desc)
 	    checkCollisions(&clientCell);
 	    pthread_mutex_unlock(&game_events_mutex);
 		send_cell(sock, clientCell);
-		fprintf(stderr, "Cell %d: %f %f %d\n", clientCell.id, clientCell.x, clientCell.y, clientCell.mass);
+		// fprintf(stderr, "Cell %d: %f %f %d\n", clientCell.id, clientCell.x, clientCell.y, clientCell.mass);
 	} while(clientCell.mass >= 10); // wait till player's death
 
 	fprintf(stderr, "Client disconnected\n");

@@ -58,11 +58,25 @@ class GUI:
 
     def get_username(self):
         root = tk.Tk()
-        root.title("mega gówno")
-        entry = tk.Entry(root)
-        entry.pack()
-        button = tk.Button(root, text="Play", command=lambda: self.submit(entry, root))
-        button.pack()
+
+        root.title("Enter username")
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        window_width = 300
+        window_height = 300
+        window_x = (screen_width - window_width) // 2
+        window_y = (screen_height - window_height) // 2
+        root.geometry(f"{window_width}x{window_height}+{window_x}+{window_y}")
+
+        frame = tk.Frame(root)
+        frame.pack(expand=True)
+        frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+
+        entry = tk.Entry(frame)
+        entry.pack(padx=10, pady=10)
+
+        button = tk.Button(frame, text="Play", command=lambda: self.submit(entry, root))
+        button.pack(pady=10)
         root.mainloop()
 
     def submit(self, entry, root):
@@ -75,7 +89,7 @@ class GUI:
         dy = my - self.myCell.y
         distance = math.sqrt(dx ** 2 + dy ** 2)
         self.radius = math.sqrt(self.myCell.mass / math.pi)
-        if distance > self.radius:
+        if distance > self.radius/16:
             angle = math.atan2(dy, dx)
             self.myCell.x += int(math.cos(angle) * self.speed)
             self.myCell.y += int(math.sin(angle) * self.speed)
@@ -98,7 +112,12 @@ class GUI:
         self.screen.fill((255, 255, 255))
         import pygame.gfxdraw
         font = pygame.font.Font(None, 24)
-        for cell in self.players:
+
+        for food in self.foods:
+            pygame.draw.circle(self.screen, (255, 0, 0), (int(food.x), int(food.y)), math.sqrt(200 / math.pi))
+
+        sorted_players = sorted(self.players, key=lambda x: x.mass)
+        for cell in sorted_players:
             # bigger balck circle
             pygame.gfxdraw.aacircle(self.screen, int(cell.x), int(cell.y), int(math.sqrt(cell.mass / math.pi)) + 2,
                                     (0, 0, 0))
@@ -113,8 +132,6 @@ class GUI:
             text_rect = text_surface.get_rect(center=(int(cell.x), int(cell.y)))  # Ustala pozycję tekstu na środku koła
             self.screen.blit(text_surface, text_rect)
 
-        for food in self.foods:
-            pygame.draw.circle(self.screen, (255, 0, 0), (int(food.x), int(food.y)), math.sqrt(200 / math.pi))
         pygame.display.flip()
         self.clock.tick(self.fps)
 
