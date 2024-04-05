@@ -7,8 +7,8 @@ import tkinter as tk
 
 
 class MyCell:
-    def __init__(self, id, x, y, mass_t, color_t):
-        self.id = id
+    def __init__(self, idx, x, y, mass_t, color_t):
+        self.id = idx
         self.x = x
         self.y = y
         self.mass = mass_t
@@ -88,8 +88,8 @@ class GUI:
         dx = mx - self.myCell.x
         dy = my - self.myCell.y
         distance = math.sqrt(dx ** 2 + dy ** 2)
-        self.radius = math.sqrt(self.myCell.mass / math.pi)
-        if distance > self.radius:
+        radius = math.sqrt(self.myCell.mass / math.pi)
+        if distance > radius / 16:
             angle = math.atan2(dy, dx)
             self.myCell.x += int(math.cos(angle) * self.speed)
             self.myCell.y += int(math.sin(angle) * self.speed)
@@ -112,8 +112,15 @@ class GUI:
         self.screen.fill((255, 255, 255))
         import pygame.gfxdraw
         font = pygame.font.Font(None, 24)
-        for cell in self.players:
-            # bigger balck circle
+
+        for food in self.foods:
+            pygame.gfxdraw.aacircle(self.screen, int(food.x), int(food.y), int(math.sqrt(200 / math.pi)), (255, 0, 0))
+            pygame.gfxdraw.filled_circle(self.screen, int(food.x), int(food.y), int(math.sqrt(200 / math.pi)),
+                                         (255, 0, 0))
+
+        sorted_players = sorted(self.players, key=lambda x: x.mass)
+        for cell in sorted_players:
+            # bigger black circle
             pygame.gfxdraw.aacircle(self.screen, int(cell.x), int(cell.y), int(math.sqrt(cell.mass / math.pi)) + 2,
                                     (0, 0, 0))
             pygame.gfxdraw.filled_circle(self.screen, int(cell.x), int(cell.y), int(math.sqrt(cell.mass / math.pi)) + 2,
@@ -123,24 +130,14 @@ class GUI:
                                     cell.color)
             pygame.gfxdraw.filled_circle(self.screen, int(cell.x), int(cell.y), int(math.sqrt(cell.mass / math.pi)),
                                          cell.color)
-
-            name = ""
-            if cell.id == self.myCell.id:
-                name = self.player_name
-            else:
-                name = str(cell.mass * self.mass_multiplier)
-
-            text_surface = font.render(name, True, (255, 255, 255))  # Tworzy obiekt Surface z tekstem
-            text_rect = text_surface.get_rect(center=(int(cell.x), int(cell.y)))  # Ustala pozycję tekstu na środku koła
+            text_surface = font.render(str(cell.mass), True, (255, 255, 255))
+            text_rect = text_surface.get_rect(center=(int(cell.x), int(cell.y)))
             self.screen.blit(text_surface, text_rect)
 
-        for food in self.foods:
-            pygame.gfxdraw.aacircle(self.screen, int(food.x), int(food.y), int(math.sqrt(200 / math.pi)), (255,0,0))
-            pygame.gfxdraw.filled_circle(self.screen, int(food.x), int(food.y), int(math.sqrt(200 / math.pi)), (255,0,0))
         pygame.display.flip()
         self.clock.tick(self.fps)
 
-    def recieve_int(self):
+    def receive_int(self):
         buffer = self.s.recv(4)
         number = struct.unpack("i", buffer)[0]
         return number
@@ -152,7 +149,7 @@ class GUI:
         self.foods = []
 
         # get enemies
-        enemies_n = self.recieve_int()
+        enemies_n = self.receive_int()
         for i in range(enemies_n):
             buffer = self.s.recv(40)
             myID, x, y, mass, r, g, b = struct.unpack('i d d i i i i', buffer)
@@ -165,7 +162,7 @@ class GUI:
             self.foods.append(Food(x, y))
 
     def run(self):
-        self.get_username()
+        # self.get_username()
         self.receive_cell()
         self.init_pygame()
         while self.running:
