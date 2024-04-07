@@ -1,0 +1,416 @@
+Index: server.c
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>#include <sys/socket.h>\n#include <netinet/in.h>\n#include <arpa/inet.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <unistd.h>\n#include <string.h>\n#include <pthread.h>\n#include <stdbool.h>\n\n// COMPILE IN TERMINAL WITH: gcc server.c -lpthread -o server\n\n//----------------------------  CONSTS AND STRUCTS  ----------------------------\n\nconst int WIDTH = 1200;\nconst int HEIGHT = 800;\n#define PLAYERS 16\nconst int STARTING_MASS = 50;\n\nstruct Cell {\n\tint id;\n\tdouble x,y;\n\tint mass;\n\tint colorRGB[3];\n\tbool running;\n};\n\nstruct GameState {\n\tstruct Cell players[PLAYERS];\n\tint n_players;\n};\n\n//---------------------  SENDING AND RECIEVING CELLS INFO  ----------------------------\n\nstruct Cell recieve_cell(const int sock)\n{\n\tstruct Cell cell;\n\tchar buffer[sizeof(struct Cell)];\n\n\tconst ssize_t bytes_received = recv(sock, buffer, sizeof(buffer), 0);\n\n\t// check if anything was sent\n\tif (bytes_received <= 0) {\n\t\tcell.mass = 0;\n\t\tcell.x = 0;\n\t\tcell.y = 0;\n\t\tcell.id = -1;\n\t\tfprintf(stderr, \"Error receiving player cell!\\n\");\n\t\treturn cell;\n\t}\n\n\tmemcpy(&cell, buffer, sizeof(struct Cell));\n\n\treturn cell;\n}\n\nvoid send_cell(const int sock, const struct Cell cell)\n{\n\tchar buffer[sizeof(struct Cell)];\n\tmemcpy(buffer, &cell, sizeof(struct Cell));\n\n\tconst ssize_t bytes_sent = send(sock, buffer, sizeof(buffer), 0);\n\n\t// check if message was sent\n\tif (bytes_sent <= 0) {\n\t\tfprintf(stderr, \"Error sending message\\n\");\n\t}\n}\n\n//------------------------  GLOBAL GAME STATE  -------------------------------\n\nstruct GameState game_state;\npthread_mutex_t game_state_mutex = PTHREAD_MUTEX_INITIALIZER;\n\nvoid update_game_state(struct Cell cell)\n{\n\tpthread_mutex_lock(&game_state_mutex);\n\n\n\tpthread_mutex_unlock(&game_state_mutex);\n}\n\n//------------------------  CONNECTION HANDLER  -------------------------------\n\nvoid *connection_handler(void *socket_desc)\n{\n\t// socket descriptor\n\tint sock = * (int *)socket_desc;\n\n\t// create player cell\n\tint id;\n\tgame_state.n_players++;\n\n\tfprintf(stderr,\"Player %d connected\\n\", id);\n\n\tstruct Cell clientCell;\n\n\t// find first free player slot\n\tbool found_slot = false;\n\tfor(int i=0;i<PLAYERS;i++)\n\t{\n\t\tif(game_state.players[i].running == false)\n\t\t{\n\t\t\tid = i;\n\t\t\tclientCell.id = id;\n\t\t\tclientCell.mass = STARTING_MASS;\n\t\t\tclientCell.colorRGB[0] = rand() % 256;\n\t\t\tclientCell.colorRGB[1] = rand() % 256;\n\t\t\tclientCell.colorRGB[2] = rand() % 256;\n\t\t\tclientCell.x = (double)rand()/RAND_MAX * WIDTH; // liczba x z zakresu od 0 do WIDTH\n\t\t\tclientCell.y = (double)rand()/RAND_MAX * HEIGHT; // liczba y z zakresu od 0 do HEIGHT\n\t\t\tgame_state.players[i] = clientCell;\n\t\t\tfound_slot = true;\n\t\t\tbreak;\n\t\t}\n\t}\n\tif(!found_slot)\n\t{\n\t\tfprintf(stderr, \"No free player slots\\n\");\n\t\tclose(sock);\n\t\tpthread_exit(NULL);\n\t}\n\n\tsend_cell(sock, clientCell);\n\n\tdo {\n\t\tclientCell = recieve_cell(sock);\n\t\tupdate_game_state(clientCell);\n\t\tfprintf(stderr, \"Cell %d: %f %f %d\\n\", id, clientCell.x, clientCell.y, clientCell.mass);\n\t} while(clientCell.mass >= 10); // wait till player's death\n\n\tfprintf(stderr, \"Client disconnected\\n\");\n\n\tclose(sock);\n\tpthread_exit(NULL);\n}\n\n//------------------------  MAIN  -------------------------------\n\nint main(int argc, char *argv[])\n{\n\tsrand(time(NULL)); game_state.n_players = 0;\n\tint listenfd = 0, connfd = 0;\n\tstruct sockaddr_in serv_addr;\n\n\tpthread_t thread_id;\n\n\tlistenfd = socket(AF_INET, SOCK_STREAM, 0);\n\tmemset(&serv_addr, '0', sizeof(serv_addr));\n\n\tserv_addr.sin_family = AF_INET;\n\tserv_addr.sin_addr.s_addr = htonl(INADDR_ANY);\n\tserv_addr.sin_port = htons(5000);\n\n\tbind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));\n\n\tlisten(listenfd, 10);\n\n\tpthread_mutex_t game_state_mutex = PTHREAD_MUTEX_INITIALIZER;\n\n\tfor(int i=0;i<PLAYERS;i++) {\n\t\tgame_state.players[i].id = false;\n\t}\n\tfor (;;) {\n\t\tconnfd = accept(listenfd, (struct sockaddr*)NULL, NULL);\n\t\tfprintf(stderr, \"Connection accepted\\n\");\n\t\tpthread_create(&thread_id, NULL, connection_handler , (void *) &connfd);\n\t}\n}
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/server.c b/server.c
+--- a/server.c	
++++ b/server.c	
+@@ -15,6 +15,7 @@
+ const int WIDTH = 1200;
+ const int HEIGHT = 800;
+ #define PLAYERS 16
++#define FOOD_COUNT 20
+ const int STARTING_MASS = 50;
+ 
+ struct Cell {
+@@ -25,8 +26,14 @@
+ 	bool running;
+ };
+ 
++struct Food {
++	double x, y;
++	int colorRGB[3];
++};
++
+ struct GameState {
+ 	struct Cell players[PLAYERS];
++	struct Food foods[FOOD_COUNT];
+ 	int n_players;
+ };
+ 
+@@ -67,6 +74,29 @@
+ 	}
+ }
+ 
++void send_food(const int sock, const struct Food food)
++{
++    char buffer[sizeof(struct Food)];
++    memcpy(buffer, &food, sizeof(struct Food));
++
++    const ssize_t bytes_sent = send(sock, buffer, sizeof(buffer), 0);
++
++    // check if message was sent
++    if (bytes_sent <= 0) {
++        fprintf(stderr, "Error sending message\n");
++    }
++}
++
++void send_int(const int sock, const int n)
++{
++    const ssize_t bytes_sent = send(sock, &n, sizeof(int), 0);
++
++    // check if message was sent
++    if (bytes_sent <= 0) {
++        fprintf(stderr, "Error sending message\n");
++    }
++}
++
+ //------------------------  GLOBAL GAME STATE  -------------------------------
+ 
+ struct GameState game_state;
+@@ -76,8 +106,31 @@
+ {
+ 	pthread_mutex_lock(&game_state_mutex);
+ 
++	game_state.players[cell.id] = cell;
++
++	pthread_mutex_unlock(&game_state_mutex);
++}
++
++void send_game_state(struct GameState gameState, int sock)
++{
++    pthread_mutex_lock(&game_state_mutex);
++
++    send_int(sock, gameState.n_players);
++
++    for(int i=0;i<PLAYERS;i++)
++    {
++        if(game_state.players[i].running)
++        {
++            send_cell(sock, game_state.players[i]);
++        }
++    }
++
++    for(int i=0;i<FOOD_COUNT;i++)
++    {
++        send_food(sock, game_state.foods[i]);
++    }
+ 
+-	pthread_mutex_unlock(&game_state_mutex);
++    pthread_mutex_unlock(&game_state_mutex);
+ }
+ 
+ //------------------------  CONNECTION HANDLER  -------------------------------
+@@ -109,7 +162,8 @@
+ 			clientCell.colorRGB[2] = rand() % 256;
+ 			clientCell.x = (double)rand()/RAND_MAX * WIDTH; // liczba x z zakresu od 0 do WIDTH
+ 			clientCell.y = (double)rand()/RAND_MAX * HEIGHT; // liczba y z zakresu od 0 do HEIGHT
+-			game_state.players[i] = clientCell;
++			clientCell.running = true;
++			update_game_state(clientCell);
+ 			found_slot = true;
+ 			break;
+ 		}
+@@ -126,11 +180,15 @@
+ 	do {
+ 		clientCell = recieve_cell(sock);
+ 		update_game_state(clientCell);
++		send_game_state(game_state, sock);
+ 		fprintf(stderr, "Cell %d: %f %f %d\n", id, clientCell.x, clientCell.y, clientCell.mass);
+ 	} while(clientCell.mass >= 10); // wait till player's death
+ 
+ 	fprintf(stderr, "Client disconnected\n");
+ 
++	game_state.n_players--;
++	game_state.players[id].running = false;
++
+ 	close(sock);
+ 	pthread_exit(NULL);
+ }
+@@ -161,6 +219,16 @@
+ 	for(int i=0;i<PLAYERS;i++) {
+ 		game_state.players[i].id = false;
+ 	}
++
++	for(int i = 0; i < FOOD_COUNT; i++)
++	{
++		game_state.foods[i].x = (double)rand()/RAND_MAX * WIDTH;
++		game_state.foods[i].y = (double)rand()/RAND_MAX * HEIGHT;
++		game_state.foods[i].colorRGB[0] = rand() % 256;
++		game_state.foods[i].colorRGB[1] = rand() % 256;
++		game_state.foods[i].colorRGB[2] = rand() % 256;
++	}
++
+ 	for (;;) {
+ 		connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
+ 		fprintf(stderr, "Connection accepted\n");
+Index: .idea/workspace.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project version=\"4\">\n  <component name=\"AutoImportSettings\">\n    <option name=\"autoReloadType\" value=\"SELECTIVE\" />\n  </component>\n  <component name=\"CMakePresetLoader\">{\n  &quot;useNewFormat&quot;: true\n}</component>\n  <component name=\"CMakeReloadState\">\n    <option name=\"reloaded\" value=\"true\" />\n  </component>\n  <component name=\"CMakeRunConfigurationManager\">\n    <generated>\n      <config projectName=\"projekt\" targetName=\"projekt\" />\n    </generated>\n  </component>\n  <component name=\"CMakeSettings\">\n    <configurations>\n      <configuration PROFILE_NAME=\"Debug\" ENABLED=\"true\" CONFIG_NAME=\"Debug\" />\n    </configurations>\n  </component>\n  <component name=\"ChangeListManager\">\n    <list default=\"true\" id=\"6f41b4d0-438a-4ed1-b057-a6b7289abc43\" name=\"Changes\" comment=\"\">\n      <change beforePath=\"$PROJECT_DIR$/.idea/workspace.xml\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/.idea/workspace.xml\" afterDir=\"false\" />\n      <change beforePath=\"$PROJECT_DIR$/server\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/server\" afterDir=\"false\" />\n      <change beforePath=\"$PROJECT_DIR$/server.c\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/server.c\" afterDir=\"false\" />\n    </list>\n    <option name=\"SHOW_DIALOG\" value=\"false\" />\n    <option name=\"HIGHLIGHT_CONFLICTS\" value=\"true\" />\n    <option name=\"HIGHLIGHT_NON_ACTIVE_CHANGELIST\" value=\"false\" />\n    <option name=\"LAST_RESOLUTION\" value=\"IGNORE\" />\n  </component>\n  <component name=\"ClangdSettings\">\n    <option name=\"formatViaClangd\" value=\"false\" />\n  </component>\n  <component name=\"ExecutionTargetManager\" SELECTED_TARGET=\"CMakeBuildProfile:Debug\" />\n  <component name=\"Git.Settings\">\n    <option name=\"RECENT_GIT_ROOT_PATH\" value=\"$PROJECT_DIR$/..\" />\n  </component>\n  <component name=\"HighlightingSettingsPerFile\">\n    <setting file=\"file://$PROJECT_DIR$/main.c\" root0=\"FORCE_HIGHLIGHTING\" />\n  </component>\n  <component name=\"ProjectApplicationVersion\">\n    <option name=\"ide\" value=\"CLion\" />\n    <option name=\"majorVersion\" value=\"2024\" />\n    <option name=\"minorVersion\" value=\"1\" />\n    <option name=\"productBranch\" value=\"Classic\" />\n  </component>\n  <component name=\"ProjectColorInfo\">{\n  &quot;associatedIndex&quot;: 8\n}</component>\n  <component name=\"ProjectId\" id=\"2eXgibCayDRPyi3ObgfZDj6SBK7\" />\n  <component name=\"ProjectLevelVcsManager\">\n    <ConfirmationsSetting value=\"2\" id=\"Add\" />\n  </component>\n  <component name=\"ProjectViewState\">\n    <option name=\"hideEmptyMiddlePackages\" value=\"true\" />\n    <option name=\"showLibraryContents\" value=\"true\" />\n  </component>\n  <component name=\"PropertiesComponent\"><![CDATA[{\n  \"keyToString\": {\n    \"ASKED_ADD_EXTERNAL_FILES\": \"true\",\n    \"CMake Application.projekt.executor\": \"Run\",\n    \"RunOnceActivity.RadMigrateCodeStyle\": \"true\",\n    \"RunOnceActivity.ShowReadmeOnStart\": \"true\",\n    \"RunOnceActivity.cidr.known.project.marker\": \"true\",\n    \"RunOnceActivity.readMode.enableVisualFormatting\": \"true\",\n    \"cf.first.check.clang-format\": \"false\",\n    \"cidr.known.project.marker\": \"true\",\n    \"git-widget-placeholder\": \"Develop\",\n    \"last_opened_file_path\": \"/home/tomasz/Pulpit/AgarIO/projectServer\",\n    \"node.js.detected.package.eslint\": \"true\",\n    \"node.js.detected.package.tslint\": \"true\",\n    \"node.js.selected.package.eslint\": \"(autodetect)\",\n    \"node.js.selected.package.tslint\": \"(autodetect)\",\n    \"nodejs_package_manager_path\": \"npm\",\n    \"vue.rearranger.settings.migration\": \"true\"\n  }\n}]]></component>\n  <component name=\"RunManager\">\n    <configuration name=\"projekt\" type=\"CMakeRunConfiguration\" factoryName=\"Application\" REDIRECT_INPUT=\"false\" ELEVATE=\"false\" USE_EXTERNAL_CONSOLE=\"false\" EMULATE_TERMINAL=\"false\" PASS_PARENT_ENVS_2=\"true\" PROJECT_NAME=\"projekt\" TARGET_NAME=\"projekt\" CONFIG_NAME=\"Debug\" RUN_TARGET_PROJECT_NAME=\"projekt\" RUN_TARGET_NAME=\"projekt\">\n      <method v=\"2\">\n        <option name=\"com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask\" enabled=\"true\" />\n      </method>\n    </configuration>\n    <configuration name=\"projekt\" type=\"CMakeRunConfiguration\" factoryName=\"Application\" REDIRECT_INPUT=\"false\" ELEVATE=\"false\" USE_EXTERNAL_CONSOLE=\"false\" EMULATE_TERMINAL=\"false\" PASS_PARENT_ENVS_2=\"true\" PROJECT_NAME=\"projekt\" TARGET_NAME=\"projekt\" CONFIG_NAME=\"Debug\" RUN_TARGET_PROJECT_NAME=\"projekt\" RUN_TARGET_NAME=\"projekt\">\n      <method v=\"2\">\n        <option name=\"com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask\" enabled=\"true\" />\n      </method>\n    </configuration>\n  </component>\n  <component name=\"SpellCheckerSettings\" RuntimeDictionaries=\"0\" Folders=\"0\" CustomDictionaries=\"0\" DefaultDictionary=\"application-level\" UseSingleDictionary=\"true\" transferred=\"true\" />\n  <component name=\"TaskManager\">\n    <task active=\"true\" id=\"Default\" summary=\"Default task\">\n      <changelist id=\"6f41b4d0-438a-4ed1-b057-a6b7289abc43\" name=\"Changes\" comment=\"\" />\n      <created>1712056464850</created>\n      <option name=\"number\" value=\"Default\" />\n      <option name=\"presentableId\" value=\"Default\" />\n      <updated>1712056464850</updated>\n      <workItem from=\"1712056465925\" duration=\"854000\" />\n      <workItem from=\"1712057642185\" duration=\"1624000\" />\n      <workItem from=\"1712063492679\" duration=\"8002000\" />\n      <workItem from=\"1712135209215\" duration=\"18000\" />\n      <workItem from=\"1712136892694\" duration=\"3180000\" />\n    </task>\n    <servers />\n  </component>\n  <component name=\"TypeScriptGeneratedFilesManager\">\n    <option name=\"version\" value=\"3\" />\n  </component>\n  <component name=\"VCPKGProject\">\n    <isAutomaticCheckingOnLaunch value=\"false\" />\n    <isAutomaticFoundErrors value=\"true\" />\n    <isAutomaticReloadCMake value=\"true\" />\n  </component>\n  <component name=\"VcsManagerConfiguration\">\n    <option name=\"ADD_EXTERNAL_FILES_SILENTLY\" value=\"true\" />\n  </component>\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/workspace.xml b/.idea/workspace.xml
+--- a/.idea/workspace.xml	
++++ b/.idea/workspace.xml	
+@@ -21,6 +21,9 @@
+   </component>
+   <component name="ChangeListManager">
+     <list default="true" id="6f41b4d0-438a-4ed1-b057-a6b7289abc43" name="Changes" comment="">
++      <change afterPath="$PROJECT_DIR$/.clang-format" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/../projectClient/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../projectClient/.idea/workspace.xml" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/.idea/editor.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/editor.xml" afterDir="false" />
+       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+       <change beforePath="$PROJECT_DIR$/server" beforeDir="false" afterPath="$PROJECT_DIR$/server" afterDir="false" />
+       <change beforePath="$PROJECT_DIR$/server.c" beforeDir="false" afterPath="$PROJECT_DIR$/server.c" afterDir="false" />
+@@ -29,9 +32,6 @@
+     <option name="HIGHLIGHT_CONFLICTS" value="true" />
+     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+     <option name="LAST_RESOLUTION" value="IGNORE" />
+-  </component>
+-  <component name="ClangdSettings">
+-    <option name="formatViaClangd" value="false" />
+   </component>
+   <component name="ExecutionTargetManager" SELECTED_TARGET="CMakeBuildProfile:Debug" />
+   <component name="Git.Settings">
+@@ -57,26 +57,27 @@
+     <option name="hideEmptyMiddlePackages" value="true" />
+     <option name="showLibraryContents" value="true" />
+   </component>
+-  <component name="PropertiesComponent"><![CDATA[{
+-  "keyToString": {
+-    "ASKED_ADD_EXTERNAL_FILES": "true",
+-    "CMake Application.projekt.executor": "Run",
+-    "RunOnceActivity.RadMigrateCodeStyle": "true",
+-    "RunOnceActivity.ShowReadmeOnStart": "true",
+-    "RunOnceActivity.cidr.known.project.marker": "true",
+-    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+-    "cf.first.check.clang-format": "false",
+-    "cidr.known.project.marker": "true",
+-    "git-widget-placeholder": "Develop",
+-    "last_opened_file_path": "/home/tomasz/Pulpit/AgarIO/projectServer",
+-    "node.js.detected.package.eslint": "true",
+-    "node.js.detected.package.tslint": "true",
+-    "node.js.selected.package.eslint": "(autodetect)",
+-    "node.js.selected.package.tslint": "(autodetect)",
+-    "nodejs_package_manager_path": "npm",
+-    "vue.rearranger.settings.migration": "true"
++  <component name="PropertiesComponent">{
++  &quot;keyToString&quot;: {
++    &quot;ASKED_ADD_EXTERNAL_FILES&quot;: &quot;true&quot;,
++    &quot;CMake Application.projekt.executor&quot;: &quot;Run&quot;,
++    &quot;RunOnceActivity.RadMigrateCodeStyle&quot;: &quot;true&quot;,
++    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
++    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
++    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
++    &quot;cf.advertisement.text.overridden&quot;: &quot;true&quot;,
++    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
++    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
++    &quot;git-widget-placeholder&quot;: &quot;Develop&quot;,
++    &quot;last_opened_file_path&quot;: &quot;/home/tomasz/Pulpit/AgarIO/projectServer&quot;,
++    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
++    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
++    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
++    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
++    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
++    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+   }
+-}]]></component>
++}</component>
+   <component name="RunManager">
+     <configuration name="projekt" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="projekt" TARGET_NAME="projekt" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="projekt" RUN_TARGET_NAME="projekt">
+       <method v="2">
+@@ -102,6 +103,9 @@
+       <workItem from="1712063492679" duration="8002000" />
+       <workItem from="1712135209215" duration="18000" />
+       <workItem from="1712136892694" duration="3180000" />
++      <workItem from="1712147762465" duration="478000" />
++      <workItem from="1712148253489" duration="169000" />
++      <workItem from="1712148430800" duration="1136000" />
+     </task>
+     <servers />
+   </component>
+Index: .idea/editor.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project version=\"4\">\n  <component name=\"BackendCodeEditorSettings\">\n    <option name=\"/Default/Housekeeping/GlobalSettingsUpgraded/IsUpgraded/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppClangFormat/EnableClangFormatSupport/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/EditorConfig/EnableClangFormatSupport/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/ALIGN_MULTILINE_BINARY_EXPRESSIONS_CHAIN/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/ALIGN_MULTILINE_CALLS_CHAIN/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/ALIGN_MULTILINE_EXPRESSION/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/ALIGN_MULTILINE_FOR_STMT/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/ALIGN_MULTIPLE_DECLARATION/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/ALIGN_TERNARY/@EntryValue\" value=\"ALIGN_ALL\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/BLANK_LINES_AROUND_CLASS_DEFINITION/@EntryValue\" value=\"1\" type=\"int\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/KEEP_BLANK_LINES_IN_DECLARATIONS/@EntryValue\" value=\"2\" type=\"int\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/KEEP_BLANK_LINES_IN_CODE/@EntryValue\" value=\"2\" type=\"int\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/KEEP_USER_LINEBREAKS/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/INDENT_CASE_FROM_SWITCH/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/INDENT_COMMENT/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/INT_ALIGN_EQ/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SIMPLE_BLOCK_STYLE/@EntryValue\" value=\"DO_NOT_CHANGE\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_AFTER_COMMA_IN_TEMPLATE_ARGS/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_AFTER_COMMA_IN_TEMPLATE_PARAMS/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_AFTER_FOR_SEMICOLON/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_BEFORE_FOR_SEMICOLON/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_AFTER_UNARY_OPERATOR/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_WITHIN_ARRAY_ACCESS_BRACKETS/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_WITHIN_CAST_EXPRESSION_PARENTHESES/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_WITHIN_EMPTY_INITIALIZER_BRACES/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_WITHIN_EMPTY_METHOD_PARENTHESES/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_WITHIN_INITIALIZER_BRACES/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPECIAL_ELSE_IF_TREATMENT/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_AFTER_CAST_EXPRESSION_PARENTHESES/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/WRAP_AFTER_BINARY_OPSIGN/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/WRAP_BEFORE_TERNARY_OPSIGNS/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/TYPE_DECLARATION_BRACES/@EntryValue\" value=\"END_OF_LINE\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/OTHER_BRACES/@EntryValue\" value=\"END_OF_LINE\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/CASE_BLOCK_BRACES/@EntryValue\" value=\"END_OF_LINE\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/BLANK_LINES_AROUND_FUNCTION_DECLARATION/@EntryValue\" value=\"1\" type=\"int\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/BLANK_LINES_AROUND_FUNCTION_DEFINITION/@EntryValue\" value=\"1\" type=\"int\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/PLACE_WHILE_ON_NEW_LINE/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/PLACE_ELSE_ON_NEW_LINE/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/PLACE_CATCH_ON_NEW_LINE/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/NAMESPACE_INDENTATION/@EntryValue\" value=\"All\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/ALIGN_MULTILINE_ARGUMENT/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/ALIGN_MULTILINE_EXTENDS_LIST/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/ALIGN_MULTILINE_PARAMETER/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/ALIGN_MULTILINE_TYPE_ARGUMENT/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/ALIGN_MULTILINE_TYPE_PARAMETER/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/BLANK_LINES_AROUND_DECLARATIONS/@EntryValue\" value=\"0\" type=\"int\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/INDENT_ACCESS_SPECIFIERS_FROM_CLASS/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/INDENT_CLASS_MEMBERS_FROM_ACCESS_SPECIFIERS/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/LINE_BREAK_AFTER_COLON_IN_MEMBER_INITIALIZER_LISTS/@EntryValue\" value=\"ON_SINGLE_LINE\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/MEMBER_INITIALIZER_LIST_STYLE/@EntryValue\" value=\"DO_NOT_CHANGE\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/PLACE_NAMESPACE_DEFINITIONS_ON_SAME_LINE/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_AFTER_COLON_IN_BITFIELD_DECLARATOR/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_BEFORE_COLON_IN_BITFIELD_DECLARATOR/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_AFTER_EXTENDS_COLON/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_BEFORE_EXTENDS_COLON/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_AFTER_FOR_COLON/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_BEFORE_FOR_COLON/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_AFTER_PTR_IN_DATA_MEMBER/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_AFTER_PTR_IN_DATA_MEMBERS/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_AFTER_PTR_IN_METHOD/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_AFTER_PTR_IN_NESTED_DECLARATOR/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_AFTER_REF_IN_DATA_MEMBER/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_AFTER_REF_IN_DATA_MEMBERS/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_AFTER_REF_IN_METHOD/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_BEFORE_PTR_IN_ABSTRACT_DECL/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_BEFORE_PTR_IN_DATA_MEMBER/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_BEFORE_PTR_IN_DATA_MEMBERS/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_BEFORE_PTR_IN_METHOD/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_BEFORE_REF_IN_ABSTRACT_DECL/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_BEFORE_REF_IN_DATA_MEMBER/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_BEFORE_REF_IN_DATA_MEMBERS/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_BEFORE_REF_IN_METHOD/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_BEFORE_TEMPLATE_ARGS/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_BEFORE_TEMPLATE_PARAMS/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_BETWEEN_CLOSING_ANGLE_BRACKETS_IN_TEMPLATE_ARGS/@EntryValue\" value=\"true\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_WITHIN_EMPTY_TEMPLATE_PARAMS/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_WITHIN_TEMPLATE_ARGS/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_WITHIN_TEMPLATE_PARAMS/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_WITHIN_DECLARATION_PARENTHESES/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/SPACE_WITHIN_EMPTY_BLOCKS/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/WRAP_BEFORE_INVOCATION_LPAR/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/WRAP_AFTER_INVOCATION_LPAR/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/WRAP_BEFORE_INVOCATION_RPAR/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/WRAP_BEFORE_DECLARATION_LPAR/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/WRAP_AFTER_DECLARATION_LPAR/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/WRAP_BEFORE_DECLARATION_RPAR/@EntryValue\" value=\"false\" type=\"bool\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/WRAP_ARGUMENTS_STYLE/@EntryValue\" value=\"WRAP_IF_LONG\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/WRAP_PARAMETERS_STYLE/@EntryValue\" value=\"WRAP_IF_LONG\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/BREAK_TEMPLATE_DECLARATION/@EntryValue\" value=\"LINE_BREAK\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/NAMESPACE_DECLARATION_BRACES/@EntryValue\" value=\"END_OF_LINE\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/FREE_BLOCK_BRACES/@EntryValue\" value=\"END_OF_LINE\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/INVOCABLE_DECLARATION_BRACES/@EntryValue\" value=\"END_OF_LINE\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/ANONYMOUS_METHOD_DECLARATION_BRACES/@EntryValue\" value=\"END_OF_LINE\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/INITIALIZER_BRACES/@EntryValue\" value=\"END_OF_LINE_NO_SPACE\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/INDENT_STYLE/@EntryValue\" value=\"Space\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/INDENT_SIZE/@EntryValue\" value=\"4\" type=\"int\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/CONTINUOUS_LINE_INDENT/@EntryValue\" value=\"Double\" type=\"string\" />\n    <option name=\"/Default/CodeStyle/CodeFormatting/CppFormatting/TAB_WIDTH/@EntryValue\" value=\"4\" type=\"int\" />\n  </component>\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/editor.xml b/.idea/editor.xml
+--- a/.idea/editor.xml	
++++ b/.idea/editor.xml	
+@@ -2,7 +2,7 @@
+ <project version="4">
+   <component name="BackendCodeEditorSettings">
+     <option name="/Default/Housekeeping/GlobalSettingsUpgraded/IsUpgraded/@EntryValue" value="true" type="bool" />
+-    <option name="/Default/CodeStyle/CodeFormatting/CppClangFormat/EnableClangFormatSupport/@EntryValue" value="false" type="bool" />
++    <option name="/Default/CodeStyle/CodeFormatting/CppClangFormat/EnableClangFormatSupport/@EntryValue" value="true" type="bool" />
+     <option name="/Default/CodeStyle/EditorConfig/EnableClangFormatSupport/@EntryValue" value="false" type="bool" />
+     <option name="/Default/CodeStyle/CodeFormatting/CppFormatting/ALIGN_MULTILINE_BINARY_EXPRESSIONS_CHAIN/@EntryValue" value="true" type="bool" />
+     <option name="/Default/CodeStyle/CodeFormatting/CppFormatting/ALIGN_MULTILINE_CALLS_CHAIN/@EntryValue" value="false" type="bool" />
+Index: ../projectClient/client.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import socket\nimport struct\nimport math\nimport pygame\n\n\nclass MyCell:\n    def __init__(self, ids, xs, ys, mass_t, color_t):\n        self.id = ids\n        self.x = xs\n        self.y = ys\n        self.mass = mass_t\n        self.color = color_t\n\n\n# Create a socket\ns = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n\n# Define the port\nport = 5000\n\n# connect to the server\ns.connect(('localhost', port))\n\n# receive starting cell\nbuffer = s.recv(40)\nmyID, x, y, mass, r, g, b = struct.unpack('i d d i i i i', buffer)\nmyCell = MyCell(myID, x, y, mass, (r, g, b))\n\npygame.init()\n\nWIDTH = 1200\nHEIGHT = 800\nFPS = 60\nSPEED = 5\n\nscreen = pygame.display.set_mode((WIDTH, HEIGHT))\npygame.display.set_caption(\"Agar.io\")\nclock = pygame.time.Clock()\nrunning = True\nwhile running:\n    for event in pygame.event.get():\n        if event.type == pygame.QUIT:\n            running = False\n\n    mx, my = pygame.mouse.get_pos()\n\n    dx = mx - myCell.x\n    dy = my - myCell.y\n\n    distance = math.sqrt(dx ** 2 + dy ** 2)\n    radius = math.sqrt(myCell.mass/math.pi)\n\n    if distance > radius:\n        angle = math.atan2(dy, dx)\n\n        myCell.x += int(math.cos(angle) * SPEED)\n        myCell.y += int(math.sin(angle) * SPEED)\n\n    # send position change to the server\n    data = struct.pack('i d d i', myCell.id, myCell.x, myCell.y, myCell.mass)\n    s.sendall(data)\n\n    # Draw everything\n    screen.fill((255, 255, 255))\n    pygame.draw.circle(screen, myCell.color, (int(myCell.x), int(myCell.y)), 25)\n\n    # Flip the display\n    pygame.display.flip()\n\n    # Cap the frame rate\n    clock.tick(FPS)\n\n# close the connection\ns.close()
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/../projectClient/client.py b/../projectClient/client.py
+--- a/../projectClient/client.py	
++++ b/../projectClient/client.py	
+@@ -4,7 +4,7 @@
+ import pygame
+ 
+ 
+-class MyCell:
++class Cell:
+     def __init__(self, ids, xs, ys, mass_t, color_t):
+         self.id = ids
+         self.x = xs
+@@ -13,6 +13,14 @@
+         self.color = color_t
+ 
+ 
++class Food:
++
++    def __init__(self, x, y, color_t):
++        self.x = x
++        self.y = y
++        self.color = color_t
++
++
+ # Create a socket
+ s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+ 
+@@ -25,7 +33,7 @@
+ # receive starting cell
+ buffer = s.recv(40)
+ myID, x, y, mass, r, g, b = struct.unpack('i d d i i i i', buffer)
+-myCell = MyCell(myID, x, y, mass, (r, g, b))
++myCell = Cell(myID, x, y, mass, (r, g, b))
+ 
+ pygame.init()
+ 
+@@ -49,7 +57,7 @@
+     dy = my - myCell.y
+ 
+     distance = math.sqrt(dx ** 2 + dy ** 2)
+-    radius = math.sqrt(myCell.mass/math.pi)
++    radius = math.sqrt(myCell.mass / math.pi)
+ 
+     if distance > radius:
+         angle = math.atan2(dy, dx)
+@@ -61,9 +69,30 @@
+     data = struct.pack('i d d i', myCell.id, myCell.x, myCell.y, myCell.mass)
+     s.sendall(data)
+ 
++    n_players_buffer = s.recv(4)
++    n_players = struct.unpack('i', n_players_buffer)[0]
++
++    players = []
++    for i in range(int(n_players)):
++        new_player_buffer = s.recv(40)
++        myID, x, y, mass, r, g, b = struct.unpack('i d d i i i i', new_player_buffer)
++        players.append(Cell(myID, x, y, mass, (r, g, b)))
++
++    foods = []
++    for i in range(20):
++        new_food_buffer = s.recv(32)
++        x, y, r, g, b = struct.unpack('d d i i i', new_food_buffer)
++        foods.append(Food(x, y, (r, g, b)))
++
+     # Draw everything
+     screen.fill((255, 255, 255))
+-    pygame.draw.circle(screen, myCell.color, (int(myCell.x), int(myCell.y)), 25)
++    for cell in players:
++        pygame.draw.circle(screen, cell.color, (int(cell.x), int(cell.y)), 5)
++
++    for food in foods:
++        pygame.draw.circle(screen, food.color, (int(food.x), int(food.y)), 5)
++
++    # pygame.draw.circle(screen, myCell.color, (int(myCell.x), int(myCell.y)), 25)
+ 
+     # Flip the display
+     pygame.display.flip()
+@@ -72,4 +101,4 @@
+     clock.tick(FPS)
+ 
+ # close the connection
+-s.close()
+\ No newline at end of file
++s.close()
+Index: ../projectClient/.idea/workspace.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project version=\"4\">\n  <component name=\"AutoImportSettings\">\n    <option name=\"autoReloadType\" value=\"SELECTIVE\" />\n  </component>\n  <component name=\"ChangeListManager\">\n    <list default=\"true\" id=\"589e1041-665e-48a5-a613-230852829ec8\" name=\"Changes\" comment=\"\">\n      <change beforePath=\"$PROJECT_DIR$/.idea/workspace.xml\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/.idea/workspace.xml\" afterDir=\"false\" />\n      <change beforePath=\"$PROJECT_DIR$/client.py\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/client.py\" afterDir=\"false\" />\n      <change beforePath=\"$PROJECT_DIR$/../projectServer/server\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/../projectServer/server\" afterDir=\"false\" />\n      <change beforePath=\"$PROJECT_DIR$/../projectServer/server.c\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/../projectServer/server.c\" afterDir=\"false\" />\n    </list>\n    <option name=\"SHOW_DIALOG\" value=\"false\" />\n    <option name=\"HIGHLIGHT_CONFLICTS\" value=\"true\" />\n    <option name=\"HIGHLIGHT_NON_ACTIVE_CHANGELIST\" value=\"false\" />\n    <option name=\"LAST_RESOLUTION\" value=\"IGNORE\" />\n  </component>\n  <component name=\"FileTemplateManagerImpl\">\n    <option name=\"RECENT_TEMPLATES\">\n      <list>\n        <option value=\"Python Script\" />\n      </list>\n    </option>\n  </component>\n  <component name=\"Git.Settings\">\n    <option name=\"RECENT_GIT_ROOT_PATH\" value=\"$PROJECT_DIR$/..\" />\n  </component>\n  <component name=\"ProjectColorInfo\">{\n  &quot;associatedIndex&quot;: 8\n}</component>\n  <component name=\"ProjectId\" id=\"2eXj0HjR5C1HwtS092EMXMzNrGO\" />\n  <component name=\"ProjectLevelVcsManager\">\n    <ConfirmationsSetting value=\"2\" id=\"Add\" />\n  </component>\n  <component name=\"ProjectViewState\">\n    <option name=\"hideEmptyMiddlePackages\" value=\"true\" />\n    <option name=\"showLibraryContents\" value=\"true\" />\n  </component>\n  <component name=\"PropertiesComponent\"><![CDATA[{\n  \"keyToString\": {\n    \"Python.Unnamed.executor\": \"Run\",\n    \"Python.client.executor\": \"Run\",\n    \"RunOnceActivity.OpenProjectViewOnStart\": \"true\",\n    \"RunOnceActivity.ShowReadmeOnStart\": \"true\",\n    \"git-widget-placeholder\": \"Develop\",\n    \"last_opened_file_path\": \"/home/tomasz/Pulpit/AgarIO/projectClient\",\n    \"node.js.detected.package.eslint\": \"true\",\n    \"node.js.detected.package.tslint\": \"true\",\n    \"node.js.selected.package.eslint\": \"(autodetect)\",\n    \"node.js.selected.package.tslint\": \"(autodetect)\",\n    \"nodejs_package_manager_path\": \"npm\",\n    \"settings.editor.selected.configurable\": \"configurable.group.build\",\n    \"vue.rearranger.settings.migration\": \"true\"\n  }\n}]]></component>\n  <component name=\"SharedIndexes\">\n    <attachedChunks>\n      <set>\n        <option value=\"bundled-python-sdk-09665e90c3a7-b11f5e8da5ad-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-233.15026.15\" />\n      </set>\n    </attachedChunks>\n  </component>\n  <component name=\"SpellCheckerSettings\" RuntimeDictionaries=\"0\" Folders=\"0\" CustomDictionaries=\"0\" DefaultDictionary=\"application-level\" UseSingleDictionary=\"true\" transferred=\"true\" />\n  <component name=\"TaskManager\">\n    <task active=\"true\" id=\"Default\" summary=\"Default task\">\n      <changelist id=\"589e1041-665e-48a5-a613-230852829ec8\" name=\"Changes\" comment=\"\" />\n      <created>1712057591352</created>\n      <option name=\"number\" value=\"Default\" />\n      <option name=\"presentableId\" value=\"Default\" />\n      <updated>1712057591352</updated>\n      <workItem from=\"1712057593218\" duration=\"1674000\" />\n      <workItem from=\"1712063510506\" duration=\"5909000\" />\n      <workItem from=\"1712135129156\" duration=\"46000\" />\n      <workItem from=\"1712135308177\" duration=\"10000\" />\n      <workItem from=\"1712136508430\" duration=\"68000\" />\n      <workItem from=\"1712136886860\" duration=\"3182000\" />\n    </task>\n    <servers />\n  </component>\n  <component name=\"TypeScriptGeneratedFilesManager\">\n    <option name=\"version\" value=\"3\" />\n  </component>\n  <component name=\"com.intellij.coverage.CoverageDataManagerImpl\">\n    <SUITE FILE_PATH=\"coverage/projectClient$client.coverage\" NAME=\"client Coverage Results\" MODIFIED=\"1712140066873\" SOURCE_PROVIDER=\"com.intellij.coverage.DefaultCoverageFileProvider\" RUNNER=\"coverage.py\" COVERAGE_BY_TEST_ENABLED=\"true\" COVERAGE_TRACING_ENABLED=\"false\" WORKING_DIRECTORY=\"$PROJECT_DIR$\" />\n  </component>\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/../projectClient/.idea/workspace.xml b/../projectClient/.idea/workspace.xml
+--- a/../projectClient/.idea/workspace.xml	
++++ b/../projectClient/.idea/workspace.xml	
+@@ -5,8 +5,11 @@
+   </component>
+   <component name="ChangeListManager">
+     <list default="true" id="589e1041-665e-48a5-a613-230852829ec8" name="Changes" comment="">
++      <change afterPath="$PROJECT_DIR$/../projectServer/.clang-format" afterDir="false" />
+       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+       <change beforePath="$PROJECT_DIR$/client.py" beforeDir="false" afterPath="$PROJECT_DIR$/client.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/../projectServer/.idea/editor.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../projectServer/.idea/editor.xml" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/../projectServer/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../projectServer/.idea/workspace.xml" afterDir="false" />
+       <change beforePath="$PROJECT_DIR$/../projectServer/server" beforeDir="false" afterPath="$PROJECT_DIR$/../projectServer/server" afterDir="false" />
+       <change beforePath="$PROJECT_DIR$/../projectServer/server.c" beforeDir="false" afterPath="$PROJECT_DIR$/../projectServer/server.c" afterDir="false" />
+     </list>
+@@ -36,23 +39,23 @@
+     <option name="hideEmptyMiddlePackages" value="true" />
+     <option name="showLibraryContents" value="true" />
+   </component>
+-  <component name="PropertiesComponent"><![CDATA[{
+-  "keyToString": {
+-    "Python.Unnamed.executor": "Run",
+-    "Python.client.executor": "Run",
+-    "RunOnceActivity.OpenProjectViewOnStart": "true",
+-    "RunOnceActivity.ShowReadmeOnStart": "true",
+-    "git-widget-placeholder": "Develop",
+-    "last_opened_file_path": "/home/tomasz/Pulpit/AgarIO/projectClient",
+-    "node.js.detected.package.eslint": "true",
+-    "node.js.detected.package.tslint": "true",
+-    "node.js.selected.package.eslint": "(autodetect)",
+-    "node.js.selected.package.tslint": "(autodetect)",
+-    "nodejs_package_manager_path": "npm",
+-    "settings.editor.selected.configurable": "configurable.group.build",
+-    "vue.rearranger.settings.migration": "true"
++  <component name="PropertiesComponent">{
++  &quot;keyToString&quot;: {
++    &quot;Python.Unnamed.executor&quot;: &quot;Run&quot;,
++    &quot;Python.client.executor&quot;: &quot;Run&quot;,
++    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
++    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
++    &quot;git-widget-placeholder&quot;: &quot;Develop&quot;,
++    &quot;last_opened_file_path&quot;: &quot;/home/tomasz/Pulpit/AgarIO/projectClient&quot;,
++    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
++    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
++    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
++    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
++    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
++    &quot;settings.editor.selected.configurable&quot;: &quot;configurable.group.build&quot;,
++    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+   }
+-}]]></component>
++}</component>
+   <component name="SharedIndexes">
+     <attachedChunks>
+       <set>
+@@ -74,6 +77,8 @@
+       <workItem from="1712135308177" duration="10000" />
+       <workItem from="1712136508430" duration="68000" />
+       <workItem from="1712136886860" duration="3182000" />
++      <workItem from="1712147756346" duration="1513000" />
++      <workItem from="1712149276930" duration="293000" />
+     </task>
+     <servers />
+   </component>
+@@ -81,6 +86,6 @@
+     <option name="version" value="3" />
+   </component>
+   <component name="com.intellij.coverage.CoverageDataManagerImpl">
+-    <SUITE FILE_PATH="coverage/projectClient$client.coverage" NAME="client Coverage Results" MODIFIED="1712140066873" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
++    <SUITE FILE_PATH="coverage/projectClient$client.coverage" NAME="client Coverage Results" MODIFIED="1712149463441" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+   </component>
+ </project>
+\ No newline at end of file
