@@ -31,12 +31,13 @@ class GUI:
         self.running = None
         self.speed = 5
         self.fps = 140
-        self.player_name = ""
+        self.ip_address = ""
+        self.port = 5000
         self.mass_multiplier = 0.1
 
+        self.get_connection_address()
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        port = 5000
-        self.s.connect(('localhost', port))
+        self.s.connect((self.ip_address, self.port))
 
     def receive_cell(self):
         buffer = self.s.recv(40)
@@ -57,9 +58,9 @@ class GUI:
             if event.type == pygame.QUIT:
                 self.running = False
 
-    def get_username(self):
+    def get_connection_address(self):
         root = tk.Tk()
-        root.title("Choose your username")
+        root.title("Connection address")
 
         window_width = 300
         window_height = 200
@@ -71,6 +72,8 @@ class GUI:
         position_right = int(screen_width / 2 - window_width / 2)
 
         root.geometry(f"{window_width}x{window_height}+{position_right}+{position_top}")
+        label = tk.Label(root, text="ip:port, for example: xxx.xxx.x.xx:yyyy")
+        label.place(relx=0.5, rely=0.2, anchor='center')
 
         entry = tk.Entry(root)
         entry.place(relx=0.5, rely=0.3, anchor='center')
@@ -80,7 +83,8 @@ class GUI:
         root.mainloop()
 
     def submit(self, entry, root):
-        self.player_name = entry.get()
+        self.ip_address, self.port = entry.get().split(":")
+        self.port = int(self.port)
         root.destroy()
 
     def update_cell_position(self):
