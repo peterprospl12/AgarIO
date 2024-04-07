@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <math.h>
+#include <arpa/inet.h>
 
 // COMPILE IN TERMINAL WITH:
 // gcc server.c -lm -lpthread -o server
@@ -168,13 +169,13 @@ struct Cell create_new_player(const int sock) {
 }
 
 void update_game_state(struct Cell cell) {
-    pthread_mutex_lock(&game_state_mutex);
+    //pthread_mutex_lock(&game_state_mutex);
     game_state.players[cell.id] = cell;
-    pthread_mutex_unlock(&game_state_mutex);
+    //pthread_mutex_unlock(&game_state_mutex);
 }
 
 bool send_game_state(const int sock) {
-    pthread_mutex_lock(&game_state_mutex);
+    //pthread_mutex_lock(&game_state_mutex);
     if (!send_int(sock, game_state.n_players)) {
         fprintf(stderr, "Error sending int value!\n");
         return false;
@@ -193,7 +194,7 @@ bool send_game_state(const int sock) {
             return false;
         }
     }
-    pthread_mutex_unlock(&game_state_mutex);
+    //pthread_mutex_unlock(&game_state_mutex);
     return true;
 }
 
@@ -330,10 +331,11 @@ int main(int argc, char *argv[]) {
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     serv_addr.sin_port = htons(5000);
 
+
     int bind_result = bind(listenfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
 
     if (bind_result == -1) {
-        fprintf(stderr, "Connection accepted\n");
+        fprintf(stderr, "Server connection error\n");
         exit(EXIT_FAILURE);
     }
 
