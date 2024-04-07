@@ -271,8 +271,7 @@ void *connection_handler(void *socket_desc) {
     int sock = *(int *) socket_desc;
 
     // create player cell
-    struct Cell clientCell = create_new_player(
-            sock); // jest obsulga bledow juz w funkcji ( jak blad to konczy socket i watek )
+    struct Cell clientCell = create_new_player(sock);
 
     fprintf(stderr, "Player %d connected\n", clientCell.id);
     int delete_id = clientCell.id;
@@ -285,15 +284,14 @@ void *connection_handler(void *socket_desc) {
         if (!send_game_state(sock))
             break;
         checkEatFood(&clientCell);
-        if(game_state.is_dead[clientCell.id]){
+        if (game_state.is_dead[clientCell.id]) {
             int tmp_id = clientCell.id;
             clientCell = revive_player();
             clientCell.id = tmp_id;
             game_state.is_dead[clientCell.id] = false;
             update_game_state(clientCell);
             //sleep(1);
-        }
-        else {
+        } else {
             checkCollisions(&clientCell);
         }
         update_game_state(clientCell);
@@ -315,20 +313,29 @@ void *connection_handler(void *socket_desc) {
 //------------------------  MAIN  -------------------------------
 
 int main(int argc, char *argv[]) {
-    srand(time(NULL));
+    FILE *f = fopen("/dev/urandom", "r");
+    unsigned int seed;
+    fread(&seed, sizeof(seed), 1, f);
+    fclose(f);
+    srand(seed);
     int listenfd = 0, connfd = 0;
     struct sockaddr_in serv_addr;
 
     pthread_t thread_id;
 
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
-    memset(&serv_addr, '0', sizeof(serv_addr));
+    memset(&serv_addr, 0, sizeof(serv_addr));
 
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     serv_addr.sin_port = htons(5000);
 
-    bind(listenfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
+    int bind_result = bind(listenfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
+
+    if (bind_result == -1) {
+        fprintf(stderr, "Connection accepted\n");
+        exit(EXIT_FAILURE);
+    }
 
     listen(listenfd, 10);
 
