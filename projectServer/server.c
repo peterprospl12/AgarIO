@@ -249,7 +249,7 @@ void checkCollisions(struct Cell *cell) {
     pthread_mutex_lock(&check_collision_mutex);
     double r1 = sqrt(cell->mass / 3.14);
     for (int i = 0; i < PLAYERS; i++) {
-        if (game_state.running[i] && i != cell->id) {
+        if (game_state.running[i] && !game_state.is_dead[i] && i != cell->id) {
             double r2 = sqrt(game_state.players[i].mass / 3.14);
             if (distance(cell->x, game_state.players[i].x, cell->y, game_state.players[i].y) < max(r1, r2)) {
                 if (cell->mass > 1.1 * game_state.players[i].mass) // I kill him
